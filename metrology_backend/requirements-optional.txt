@@ -1,0 +1,13 @@
+# OPTIONAL dependencies - install separately ONLY if you want PaddleOCR
+# (the best text-extraction engine for printed labels) instead of Tesseract:
+#
+#     pip install -r requirements-optional.txt
+#
+# Without these the app keeps working and automatically uses Tesseract.
+# Set OCR_ENGINE=paddle or OCR_ENGINE=auto in .env after installing.
+#
+# NOTE: paddleocr pulls in paddlepaddle (~500MB+). Python 3.11/3.12 wheels are
+# published for paddlepaddle 2.6.x; if you are on another Python version,
+# adjust the pins below (see https://www.paddlepaddle.org.cn/ for wheels).
+paddlepaddle==2.6.1
+paddleocr==2.7.3
