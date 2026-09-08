@@ -1,4 +1,4 @@
-# Metrology Scanner 
+# Metrology Scanner  
 
 Metrology Scanner is a full-stack compliance platform for inspecting packaged commodities against the Legal Metrology (Packaged Commodities) Rules, 2011. It accepts a product-label image, extracts declarations with OCR, evaluates compliance, highlights violations, and generates a PDF report.
 
