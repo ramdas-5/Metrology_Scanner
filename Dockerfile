@@ -11,15 +11,28 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
-# Tesseract OCR engine is a system dependency, not a pip package
+# Tesseract OCR engine is a system dependency, not a pip package.
+#
+# tesseract-ocr-eng is listed EXPLICITLY and must stay: on Debian the English
+# traineddata lives in its own package that is only a *Recommends* of
+# tesseract-ocr. With --no-install-recommends (used here to keep the image
+# small) it is silently skipped, leaving a tesseract binary that starts fine
+# but fails every image with "Failed loading language 'eng'" - which surfaces
+# as a scan that detects no text at all.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
+    tesseract-ocr-eng \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Fail the BUILD, not production, when OCR is not actually usable: the binary
+# must be on PATH and the English traineddata present. Without this check a
+# broken OCR setup only shows up as "no text detected" on a live scan.
+RUN tesseract --version && tesseract --list-langs | grep -qx eng
 
 WORKDIR /app
 

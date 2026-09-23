@@ -34,6 +34,7 @@ Two layers:
 import logging
 import os
 import re
+import shutil
 from typing import Optional
 
 import pytesseract
@@ -41,10 +42,55 @@ from PIL import Image, ImageOps, ImageFilter
 
 from app.config import settings
 
-if settings.TESSERACT_CMD:
-    pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
-
 logger = logging.getLogger(__name__)
+
+# Well-known install locations probed when TESSERACT_CMD is unset and the
+# binary is not on PATH. The Windows installer does not tick "Add to PATH" by
+# default, so a perfectly good Tesseract install otherwise looks like "OCR
+# unavailable" and every scan silently comes back with no text.
+_TESSERACT_FALLBACK_PATHS = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
+    "/usr/bin/tesseract",
+    "/usr/local/bin/tesseract",
+    "/opt/homebrew/bin/tesseract",
+)
+
+
+def _resolve_tesseract_cmd() -> Optional[str]:
+    """Locate the tesseract binary, or return None when it cannot be found.
+
+    Resolution order: explicit TESSERACT_CMD -> PATH -> standard install dirs.
+    """
+    configured = (settings.TESSERACT_CMD or "").strip().strip('"')
+    if configured:
+        if os.path.exists(configured):
+            return configured
+        logger.warning(
+            "TESSERACT_CMD=%r does not exist; probing PATH and default install locations.",
+            configured,
+        )
+
+    found = shutil.which("tesseract")
+    if found:
+        return found
+
+    for candidate in _TESSERACT_FALLBACK_PATHS:
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return None
+
+
+TESSERACT_CMD_RESOLVED = _resolve_tesseract_cmd()
+if TESSERACT_CMD_RESOLVED:
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD_RESOLVED
+    logger.info("Tesseract binary resolved to %s", TESSERACT_CMD_RESOLVED)
+else:
+    logger.warning(
+        "No Tesseract binary found. OCR will be unavailable until Tesseract is "
+        "installed or TESSERACT_CMD points at it."
+    )
 
 # Tesseract page-segmentation modes to merge. PSM 3 = fully automatic,
 # PSM 6 = uniform block, PSM 11 = sparse text (catches scattered labels).
@@ -115,6 +161,51 @@ def _prepare_image(image_path: str) -> Image.Image:
     img = ImageOps.autocontrast(img, cutoff=1)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=80, threshold=2))
     return img
+
+
+_TESSERACT_STATUS = None
+
+
+def tesseract_status() -> tuple[bool, str]:
+    """Probe Tesseract: (usable, human-readable detail).
+
+    Mirrors the AdminPanel health widget's "is OCR actually going to run?"
+    question and explains *why* when it will not, instead of a bare
+    "Unavailable".
+
+    Checks more than the binary being present: a tesseract with no English
+    traineddata starts fine and reports a version, but fails every image with
+    "Failed loading language 'eng'" - which only ever shows up as a scan that
+    detected no text. Both subprocess probes are cached, since the answer
+    cannot change while the process runs.
+    """
+    global _TESSERACT_STATUS
+    if _TESSERACT_STATUS is not None:
+        return _TESSERACT_STATUS
+
+    if not TESSERACT_CMD_RESOLVED:
+        result = (False, "tesseract binary not found - install it or set TESSERACT_CMD")
+    else:
+        try:
+            version = str(pytesseract.get_tesseract_version())
+        except Exception as exc:  # binary present but not runnable (missing DLLs, etc.)
+            result = (False, f"tesseract found but failed to run: {exc}")
+        else:
+            try:
+                languages = pytesseract.get_languages(config="")
+            except Exception:
+                languages = []
+            if languages and "eng" not in languages:
+                result = (
+                    False,
+                    f"tesseract {version} has no English ('eng') language data - "
+                    "install the tesseract-ocr-eng package (or your OS's equivalent)",
+                )
+            else:
+                result = (True, f"tesseract {version}")
+
+    _TESSERACT_STATUS = result
+    return result
 
 
 def is_paddle_available() -> bool:
@@ -272,14 +363,28 @@ def run_ocr_engine(image_path: str, engine: Optional[str] = None) -> dict:
     Tesseract so a bad OCR day never yields an empty scan.
     """
     engine = engine or resolve_ocr_engine()
+    tesseract_ok, tesseract_detail = tesseract_status()
+
+    def unavailable_error():
+        return RuntimeError(
+            f"OCR is unavailable: {tesseract_detail}. "
+            "Install Tesseract OCR or point TESSERACT_CMD at the tesseract binary."
+        )
 
     if engine == "paddle":
         text = _ocr_paddle(image_path)
         if text and text.strip():
             return {"text": text.strip(), "engine": "paddle"}
-        # fall through to Tesseract
+        # PaddleOCR returned nothing; fall back to Tesseract.
+        # Never return "" from an engine that cannot run - that surfaces as a
+        # silent "no text detected" on the UI, which is impossible to debug.
+        if not tesseract_ok:
+            raise unavailable_error()
         text = _ocr_tesseract(image_path)
         return {"text": text.strip(), "engine": "tesseract"}
+
+    if not tesseract_ok:
+        raise unavailable_error()
 
     text = _ocr_tesseract(image_path)
     return {"text": text.strip(), "engine": "tesseract"}

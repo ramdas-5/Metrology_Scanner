@@ -136,14 +136,10 @@ def system_health(current_user: models.Doc = Depends(auth_utils.require_roles("a
         component="File Storage", status="Operational" if storage_ok else "Degraded"
     ))
 
-    try:
-        import pytesseract
-        pytesseract.get_tesseract_version()
-        ocr_ok = True
-    except Exception:
-        ocr_ok = False
+    tesseract_ok, tesseract_detail = ocr_service.tesseract_status()
     checks.append(schemas.SystemHealth(
-        component="OCR Engine (Tesseract)", status="Operational" if ocr_ok else "Unavailable"
+        component="OCR Engine (Tesseract)",
+        status="Operational" if tesseract_ok else f"Unavailable ({tesseract_detail})",
     ))
 
     checks.append(schemas.SystemHealth(
