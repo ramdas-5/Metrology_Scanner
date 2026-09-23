@@ -1,0 +1,91 @@
+# Render blueprint for the BACKEND half of the merged Metrology Scanner repo.
+#
+# This repository holds both apps:
+#   backend  -> app/           (FastAPI, deployed here on Render)
+#   frontend -> src/, index.html (React/Vite, deployed to Vercel from this
+#                                same repo using vercel.json)
+#
+# Deploy with: Render Dashboard -> New + -> Blueprint -> pick this repository.
+# Leave Root Directory empty (the Dockerfile is at the repo root). Values
+# marked `sync: false` are secrets you paste into the Render dashboard once;
+# they are never stored in git. For local runs the same settings live in
+# .env.backend (see .env.backend.example).
+#
+# WHY DOCKER: the OCR pipeline needs the Tesseract *system* binary, which the
+# native Python runtime cannot apt-install. The Dockerfile also handles the
+# PORT Render injects.
+services:
+  - type: web
+    name: metrology-backend
+    runtime: docker
+    plan: free
+    # Closest Render region to India. Options: oregon, ohio, virginia,
+    # frankfurt, singapore.
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # ---- Database (MongoDB Atlas) ----
+      # Paste the full mongodb+srv://... string (with the real password).
+      # In Atlas: Network Access must allow 0.0.0.0/0 (Render's IPs are not
+      # static on the free plan), and the user needs readWrite on the DB.
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: metrology
+
+      # ---- Security ----
+      # Render generates a random signing key for the JWTs.
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+
+      # ---- CORS ----
+      # Your deployed Vercel origin(s), comma separated, no trailing slash
+      # e.g. https://metrology-scanner.vercel.app
+      # *.vercel.app preview URLs are accepted automatically.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CORS_ALLOW_VERCEL
+        value: "true"
+
+      # ---- Bootstrap admin (created on first start if users is empty) ----
+      - key: ADMIN_EMAIL
+        value: admin@metrology.gov.in
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: System Administrator
+
+      # ---- Scan pipeline ----
+      # TensorFlow needs more memory than the free 512MB instance has, so the
+      # optional label classifier is off in production. The scan itself still
+      # runs OCR + OpenRouter AI + the rule engine.
+      - key: CLASSIFIER_ENABLED
+        value: "false"
+      # The container ships Tesseract; PaddleOCR is not installed there.
+      - key: OCR_ENGINE
+        value: tesseract
+      # Leave the key empty to run without the LLM (rule-engine fallback).
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-4o-mini
+      - key: SIMILARITY_THRESHOLD
+        value: "80"
+
+      # ---- Storage ----
+      # Render's filesystem is ephemeral: uploads and generated reports vanish
+      # on every deploy/restart. To keep them, upgrade to a paid instance and
+      # uncomment the disk below, then point these two paths at the mount.
+      #   - key: UPLOAD_DIR
+      #     value: /var/data/uploads
+      #   - key: REPORTS_DIR
+      #     value: /var/data/reports
+    # disk:
+    #   name: metrology-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

@@ -1,0 +1,21 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+# MongoDB driver. PyMongo 4.6+ depends on dnspython, which is what resolves
+# the mongodb+srv:// connection strings MongoDB Atlas hands out.
+pymongo==4.9.1
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-multipart==0.0.9
+pillow==10.4.0
+pytesseract==0.3.13
+numpy==1.26.4
+tensorflow==2.17.0
+reportlab==4.2.2
+python-dotenv==1.0.1
+email-validator==2.2.0
+openai==1.40.3
+# openai 1.4x breaks on httpx >= 0.28 (removed the 'proxies' kwarg it passes)
+httpx<0.28

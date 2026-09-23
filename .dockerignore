@@ -1,0 +1,50 @@
+# The container only runs the FastAPI backend (the frontend is deployed to
+# Vercel from this same repository), so everything React/Vite is left out.
+
+# ---- Frontend (built and served by Vercel) ----
+node_modules/
+dist/
+dist-ssr/
+src/
+public/
+index.html
+package.json
+package-lock.json
+vite.config.js
+eslint.config.js
+vercel.json
+
+# ---- Secrets ----
+.env
+.env.backend
+.env.frontend
+.env.local
+*.env
+!.env.backend.example
+!.env.frontend.example
+
+# ---- Python environments / caches ----
+venv/
+.venv/
+.venv311/
+env/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ---- Local runtime data ----
+*.db
+*.sqlite3
+app/uploads/*
+!app/uploads/.gitkeep
+app/reports/*
+!app/reports/.gitkeep
+
+# ---- VCS / editors / extra docs ----
+.git/
+.gitignore
+.idea/
+.vscode/
+docs/

@@ -1,0 +1,19 @@
+# OPTIONAL dependencies - install separately ONLY if you want PaddleOCR
+# (the best text-extraction engine for printed labels) instead of Tesseract:
+#
+#     pip install -r requirements-optional.txt
+#
+# Without these the app keeps working and automatically uses Tesseract.
+# Set OCR_ENGINE=paddle or OCR_ENGINE=auto in .env after installing.
+#
+# NOTE: paddleocr pulls in paddlepaddle (~500MB+). Python 3.12 wheels are
+# published for paddlepaddle 2.6.2+ (2.6.1 has no Python 3.12 wheel on
+# Windows); if you are on another Python version, adjust the pins below
+# (see https://www.paddlepaddle.org.cn/ for wheels).
+#
+# If you already have tensorflow installed, pin numpy below 2 and use a
+# scipy version that still supports numpy 1.x, otherwise the two frameworks
+# will fight over numpy/protobuf versions:
+#   pip install numpy==1.26.4 scipy==1.14.1 protobuf==3.20.2
+paddlepaddle==2.6.2
+paddleocr==2.7.3
